@@ -1,0 +1,182 @@
+#!/bin/python3
+
+import os
+import sys
+import json
+
+RES_DIR = '.'
+
+class color:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
+def get_directory(filename):
+    return filename[:-len(filename.split('/')[-1])]
+
+def mkdir(filename):
+    os.makedirs(get_directory(filename), exist_ok=True)   
+
+def get_path(base_path, path, user_directory):
+    if path.startswith('~'):
+        return path.replace('~', user_directory)
+    if path.startswith('/'):
+        return path
+    return base_path + '/' + path                
+
+def run_instructions(instructions, application_config_directory, user_directory, variables = {}):
+    for instruction in instructions:
+        # terminal instruction
+        if type(instruction) == str:
+            for varname in variables:
+                instruction = instruction.replace(varname, variables[varname])
+            action = instruction.split(' ')[0]
+            parameters = instruction.split(' ')[1:]
+
+            # runs a bash command
+            # run <command parameter parameter ...>
+            if action == 'run':
+                os.system('cd ' + application_config_directory + ' && ' + instruction[len(action) + 1:])
+
+            # copies a file or directory
+            # copy <from> <to>
+            elif action == 'copy':
+                file_from = get_path(application_config_directory, parameters[0], user_directory)
+                file_to = get_path(application_config_directory, parameters[1], user_directory)
+                
+                mkdir(file_to)  
+                os.system('sudo cp -r ' + file_from + ' ' + file_to)
+            
+            # appends the content of one file to the content of another file
+            # append <fileToAppend> <fileToBeAppendedTo>
+            elif action == 'append':
+                file_from = get_path(application_config_directory, parameters[0], user_directory)
+                file_to = get_path(application_config_directory, parameters[1], user_directory)
+                
+                with open(file_from, 'r') as f_from:
+                    mkdir(file_to)
+                    with open(file_to, 'a') as f_to:
+                        f_to.write('\n')
+                        for line in f_from:
+                            f_to.write(line)
+
+            # replaces a string with another
+            # replace <filename> <stringToReplace> <stringToPutIn>
+            elif action == 'replace':
+                filename = get_path(application_config_directory, parameters[0], user_directory)
+                lines = []
+                with open(filename, 'r') as f:
+                    for line in f:
+                        lines.append(line)
+
+                with open(filename, 'w') as f:
+                    for line in lines:
+                        f.write(line.replace(parameters[1], parameters[2].replace('%20', ' ')))
+        
+        # conditional instructions
+        if type(instruction) == dict:
+            waiting = True
+            while waiting:
+                if variables.get(instruction['variable']):
+                    answer = variables.get(instruction['variable'])
+                    print('\n' + instruction['question'])
+                    print(' > Answer already given: ' + answer)
+                else:
+                    answer = input('\n' + instruction['question'] + '\n > ')
+                    variables.update({instruction['variable']: answer})
+
+                print()
+
+                if instruction['answer'].get(answer):
+                    run_instructions(instruction['answer'][answer], application_config_directory, user_directory, variables)
+                    waiting = False
+                    break
+
+                if instruction['answer'].get('*'):
+                    run_instructions(instruction['answer']['*'], application_config_directory, user_directory, variables)
+                    waiting = False
+                    break
+                
+                if waiting:
+                    print(color.FAIL + 'ERROR: illegal answer' + color.ENDC)
+                    del variables[instruction['variable']]
+
+def setup_application(application_directory, user_directory, variables, ignore_deps):
+    print('setting up "' + application_directory + '" ...')
+
+    try:
+        with open(application_directory + '/install.json', 'r') as f:
+            instructions = json.load(f)
+
+            # install dependencies
+            if not ignore_deps:
+                print(color.OKBLUE + '    installing dependencies ...' + color.ENDC)
+                for dependency in instructions['dependencies']:
+                    if len(os.popen('pacman -Qs ' + dependency).read()) == 0:
+                        print(color.OKBLUE + '        installing dependency "' + dependency + '" ...' + color.ENDC)
+                        os.system('yay -S ' + dependency)
+                    else:
+                        print(color.OKBLUE + '        dependency "' + dependency + '" already satisfied' + color.ENDC)
+
+            # run installation instructions
+            print(color.OKBLUE + '    running configuration ...' + color.ENDC)
+            run_instructions(instructions['install'], application_directory, user_directory, variables)
+
+            print(color.OKGREEN + '    finished' + color.ENDC)
+
+    except Exception as e:
+        print(e)
+        print(color.FAIL + '    ERROR: unable to open or handle install.json for "' + application + '"' + color.ENDC)
+
+##########################
+###   help and flags   ###
+##########################
+if '--help' in sys.argv:
+    print()
+    print('Usage:')
+    print(' dotfiles_make <home_directory> [<application> ...]')
+    print()
+    print('Installs dotfiles for a given user.')
+    print()
+    print('Options:')
+    print(' --ignore-deps   do not install any dependencies')
+    print()
+    print(' --help          show this message')
+    exit(0)
+
+ignore_deps = '--ignore-deps' in sys.argv
+if ignore_deps:
+    sys.argv.remove('--ignore-deps')
+
+################################
+###   install yay from aur   ###
+################################
+if not ignore_deps:
+    if not os.path.isfile('/usr/bin/yay'):
+        print(color.OKBLUE + 'installing yay from aur ...' + color.ENDC)
+        try:
+            os.mkdir('tmp')
+        except:
+            pass
+        os.system('cd tmp && git clone https://aur.archlinux.org/yay.git')
+        os.system('cd tmp/yay && makepkg -is')
+    else:
+        print(color.OKBLUE + 'yay is installed on your system' + color.ENDC)
+
+##################################
+###   configure applications   ###
+##################################
+variables = {}
+
+if len(sys.argv) == 2:
+    for application in os.listdir(RES_DIR):
+        setup_application(RES_DIR + '/' + application, sys.argv[1], variables, ignore_deps)
+elif len(sys.argv) > 2:
+    for application in sys.argv[2:]:
+        if not application.startswith('--'):
+            setup_application(RES_DIR + '/' + application, sys.argv[1], variables, ignore_deps)
