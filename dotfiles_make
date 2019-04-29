@@ -50,7 +50,7 @@ def run_instructions(instructions, application_config_directory, user_directory,
                 file_to = get_path(application_config_directory, parameters[1], user_directory)
                 
                 mkdir(file_to)  
-                os.system('sudo cp -r ' + file_from + ' ' + file_to)
+                os.system('cp -r ' + file_from + ' ' + file_to)
             
             # appends the content of one file to the content of another file
             # append <fileToAppend> <fileToBeAppendedTo>
@@ -92,12 +92,12 @@ def run_instructions(instructions, application_config_directory, user_directory,
 
                 print()
 
-                if instruction['answer'].get(answer):
+                if instruction['answer'].get(answer) != None:
                     run_instructions(instruction['answer'][answer], application_config_directory, user_directory, variables)
                     waiting = False
                     break
 
-                if instruction['answer'].get('*'):
+                if instruction['answer'].get('*') != None:
                     run_instructions(instruction['answer']['*'], application_config_directory, user_directory, variables)
                     waiting = False
                     break
@@ -141,7 +141,7 @@ if '--help' in sys.argv:
     print('Usage:')
     print(' dotfiles_make <home_directory> [<application> ...]')
     print()
-    print('Installs dotfiles for a given user.')
+    print('Installs dotfiles and its dependencys for a given user.')
     print()
     print('Options:')
     print(' --ignore-deps   do not install any dependencies')
