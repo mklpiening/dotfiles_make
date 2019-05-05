@@ -173,6 +173,9 @@ if not ignore_deps:
 ##################################
 variables = {}
 
+while sys.argv[1].endswith('/'):
+    sys.argv[1] = sys.argv[1][:-1]
+
 if len(sys.argv) == 2:
     for application in os.listdir(RES_DIR):
         setup_application(RES_DIR + '/' + application, sys.argv[1], variables, ignore_deps)
