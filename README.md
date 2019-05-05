@@ -78,3 +78,6 @@ To install this application you can use the provided `install.sh` script which c
 $ sudo ./install.sh
 ```
 Afterwards you can run the python script by typing `sudo dotfiles_make </home/directory>` after changing directory to your dotfiles.
+
+# Examples
+An example can be found [here](https://github.com/mklpiening/dotfiles).
