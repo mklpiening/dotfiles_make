@@ -77,6 +77,14 @@ def run_instructions(instructions, application_config_directory, user_directory,
                 with open(filename, 'w') as f:
                     for line in lines:
                         f.write(line.replace(parameters[1], parameters[2].replace('%20', ' ')))
+            
+            # evaluates a python program (e.g a mathematical formula like (10 + 42) / 1000)
+            # eval <variable to write to> <python program string>
+            elif action == 'eval':
+                program = ''
+                for param in parameters[1:]:
+                    program += param + ' '
+                variables.update({parameters[0]: str(eval(program))})
         
         # conditional instructions
         if type(instruction) == dict:
