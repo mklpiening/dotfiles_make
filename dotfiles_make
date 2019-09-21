@@ -35,7 +35,7 @@ def append(file_from, file_to, as_root = False):
 
 def replace(file, search, repacement, as_root = False):
     prefix = 'sudo ' if as_root else ''
-    os.system(prefix + 'sed -i "s/' + search + '/' + repacement + '/g" ' + file)
+    os.system(prefix + 'sed -i "s/' + search.replace('/', '\\/').replace('[', '\\[').replace(']', '\\]') + '/' + repacement.replace('/', '\\/').replace('[', '\\[').replace(']', '\\]') + '/g" ' + file)
 
 def get_path(base_path, path):
     if path.startswith('~'):
@@ -208,6 +208,6 @@ if len(sys.argv) == 1:
     for application in os.listdir(RES_DIR):
         setup_application(RES_DIR + '/' + application, variables, ignore_deps)
 elif len(sys.argv) > 1:
-    for application in sys.argv[2:]:
+    for application in sys.argv[1:]:
         if not application.startswith('--'):
             setup_application(RES_DIR + '/' + application, variables, ignore_deps)
