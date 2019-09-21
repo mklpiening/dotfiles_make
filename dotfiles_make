@@ -19,17 +19,32 @@ class color:
 def get_directory(filename):
     return filename[:-len(filename.split('/')[-1])]
 
-def mkdir(filename):
-    os.makedirs(get_directory(filename), exist_ok=True)   
+def mkdir(filename, as_root = False):
+    prefix = 'sudo ' if as_root else ''
+    parts = filename.split('/')
+    path = filename[:-len(parts[len(parts) - 1])]
+    os.system(prefix + 'mkdir -p ' + path)
 
-def get_path(base_path, path, user_directory):
+def copy(file_from, file_to, as_root = False):
+    prefix = 'sudo ' if as_root else ''
+    os.system(prefix + 'cp -r ' + file_from + ' ' + file_to)
+
+def append(file_from, file_to, as_root = False):
+    prefix = 'sudo ' if as_root else ''
+    os.system(prefix + 'sh -c "cat ' + file_from + ' >> ' + file_to + '"')
+
+def replace(file, search, repacement, as_root = False):
+    prefix = 'sudo ' if as_root else ''
+    os.system(prefix + 'sed -i "s/' + search + '/' + repacement + '/g" ' + file)
+
+def get_path(base_path, path):
     if path.startswith('~'):
-        return path.replace('~', user_directory)
+        return path
     if path.startswith('/'):
         return path
     return base_path + '/' + path                
 
-def run_instructions(instructions, application_config_directory, user_directory, variables = {}):
+def run_instructions(instructions, application_config_directory, variables = {}):
     for instruction in instructions:
         # terminal instruction
         if type(instruction) == str:
@@ -41,42 +56,50 @@ def run_instructions(instructions, application_config_directory, user_directory,
             # runs a bash command
             # run <command parameter parameter ...>
             if action == 'run':
-                os.system('cd ' + application_config_directory + ' && ' + instruction[len(action) + 1:])
+                os.system(instruction[len(action) + 1:])
 
             # copies a file or directory
-            # copy <from> <to>
+            # copy [--su] <from> <to>
             elif action == 'copy':
-                file_from = get_path(application_config_directory, parameters[0], user_directory)
-                file_to = get_path(application_config_directory, parameters[1], user_directory)
+                base_idx = 0
+                as_root = False
+                if len(parameters) == 3 and parameters[0] == '--su':
+                    base_idx = 1
+                    as_root = True
+
+                file_from = get_path(application_config_directory, parameters[base_idx + 0])
+                file_to = get_path(application_config_directory, parameters[base_idx + 1])
                 
-                mkdir(file_to)  
-                os.system('cp -r ' + file_from + ' ' + file_to)
+                mkdir(file_to, as_root)  
+                copy(file_from, file_to, as_root)
             
             # appends the content of one file to the content of another file
-            # append <fileToAppend> <fileToBeAppendedTo>
+            # append [--su] <fileToAppend> <fileToBeAppendedTo>
             elif action == 'append':
-                file_from = get_path(application_config_directory, parameters[0], user_directory)
-                file_to = get_path(application_config_directory, parameters[1], user_directory)
-                
-                with open(file_from, 'r') as f_from:
-                    mkdir(file_to)
-                    with open(file_to, 'a') as f_to:
-                        f_to.write('\n')
-                        for line in f_from:
-                            f_to.write(line)
+                base_idx = 0
+                as_root = False
+                if len(parameters) == 3 and parameters[0] == '--su':
+                    base_idx = 1
+                    as_root = True
+
+                file_from = get_path(application_config_directory, parameters[base_idx + 0])
+                file_to = get_path(application_config_directory, parameters[base_idx + 1])
+
+                mkdir(file_to, as_root) 
+                append(file_from, file_to, as_root)
 
             # replaces a string with another
-            # replace <filename> <stringToReplace> <stringToPutIn>
+            # replace [--su] <filename> <stringToReplace> <stringToPutIn>
             elif action == 'replace':
-                filename = get_path(application_config_directory, parameters[0], user_directory)
-                lines = []
-                with open(filename, 'r') as f:
-                    for line in f:
-                        lines.append(line)
+                base_idx = 0
+                as_root = False
+                if len(parameters) == 3 and parameters[0] == '--su':
+                    base_idx = 1
+                    as_root = True
 
-                with open(filename, 'w') as f:
-                    for line in lines:
-                        f.write(line.replace(parameters[1], parameters[2].replace('%20', ' ')))
+                filename = get_path(application_config_directory, parameters[base_idx + 0])
+
+                replace(filename, parameters[base_idx + 1], parameters[base_idx + 2].replace('%20', ' '), as_root)
             
             # evaluates a python program (e.g a mathematical formula like (10 + 42) / 1000)
             # eval <variable to write to> <python program string>
@@ -101,12 +124,12 @@ def run_instructions(instructions, application_config_directory, user_directory,
                 print()
 
                 if instruction['answer'].get(answer) != None:
-                    run_instructions(instruction['answer'][answer], application_config_directory, user_directory, variables)
+                    run_instructions(instruction['answer'][answer], application_config_directory, variables)
                     waiting = False
                     break
 
                 if instruction['answer'].get('*') != None:
-                    run_instructions(instruction['answer']['*'], application_config_directory, user_directory, variables)
+                    run_instructions(instruction['answer']['*'], application_config_directory, variables)
                     waiting = False
                     break
                 
@@ -114,7 +137,7 @@ def run_instructions(instructions, application_config_directory, user_directory,
                     print(color.FAIL + 'ERROR: illegal answer' + color.ENDC)
                     del variables[instruction['variable']]
 
-def setup_application(application_directory, user_directory, variables, ignore_deps):
+def setup_application(application_directory, variables, ignore_deps):
     print('setting up "' + application_directory + '" ...')
 
     try:
@@ -133,7 +156,7 @@ def setup_application(application_directory, user_directory, variables, ignore_d
 
             # run installation instructions
             print(color.OKBLUE + '    running configuration ...' + color.ENDC)
-            run_instructions(instructions['install'], application_directory, user_directory, variables)
+            run_instructions(instructions['install'], application_directory, variables)
 
             print(color.OKGREEN + '    finished' + color.ENDC)
 
@@ -147,9 +170,9 @@ def setup_application(application_directory, user_directory, variables, ignore_d
 if '--help' in sys.argv:
     print()
     print('Usage:')
-    print(' dotfiles_make <home_directory> [<application> ...]')
+    print(' dotfiles_make [<application> ...]')
     print()
-    print('Installs dotfiles and its dependencys for a given user.')
+    print('Installs dotfiles and its dependencys for the current user.')
     print()
     print('Options:')
     print(' --ignore-deps   do not install any dependencies')
@@ -165,29 +188,26 @@ if ignore_deps:
 ###   install yay from aur   ###
 ################################
 if not ignore_deps:
-    if not os.path.isfile('/usr/bin/yay'):
-        print(color.OKBLUE + 'installing yay from aur ...' + color.ENDC)
+    if not os.path.isfile('/usr/bin/pikaur'):
+        print(color.OKBLUE + 'installing pikaur from aur ...' + color.ENDC)
         try:
-            os.mkdir('tmp')
+            os.mkdir('../tmp')
         except:
             pass
-        os.system('cd tmp && git clone https://aur.archlinux.org/yay.git')
-        os.system('cd tmp/yay && makepkg -is')
+        os.system('cd ../tmp && git clone https://aur.archlinux.org/pikaur.git')
+        os.system('cd ../tmp/yay && makepkg -is')
     else:
-        print(color.OKBLUE + 'yay is installed on your system' + color.ENDC)
+        print(color.OKBLUE + 'pikaur is installed on your system' + color.ENDC)
 
 ##################################
 ###   configure applications   ###
 ##################################
 variables = {}
 
-while sys.argv[1].endswith('/'):
-    sys.argv[1] = sys.argv[1][:-1]
-
-if len(sys.argv) == 2:
+if len(sys.argv) == 1:
     for application in os.listdir(RES_DIR):
-        setup_application(RES_DIR + '/' + application, sys.argv[1], variables, ignore_deps)
-elif len(sys.argv) > 2:
+        setup_application(RES_DIR + '/' + application, variables, ignore_deps)
+elif len(sys.argv) > 1:
     for application in sys.argv[2:]:
         if not application.startswith('--'):
-            setup_application(RES_DIR + '/' + application, sys.argv[1], variables, ignore_deps)
+            setup_application(RES_DIR + '/' + application, variables, ignore_deps)
