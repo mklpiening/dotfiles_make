@@ -63,7 +63,7 @@ def run_instructions(instructions, application_config_directory, variables = {})
             elif action == 'copy':
                 base_idx = 0
                 as_root = False
-                if len(parameters) == 3 and parameters[0] == '--su':
+                if len(parameters) >= 3 and parameters[0] == '--su':
                     base_idx = 1
                     as_root = True
 
@@ -78,7 +78,7 @@ def run_instructions(instructions, application_config_directory, variables = {})
             elif action == 'append':
                 base_idx = 0
                 as_root = False
-                if len(parameters) == 3 and parameters[0] == '--su':
+                if len(parameters) >= 3 and parameters[0] == '--su':
                     base_idx = 1
                     as_root = True
 
@@ -93,7 +93,7 @@ def run_instructions(instructions, application_config_directory, variables = {})
             elif action == 'replace':
                 base_idx = 0
                 as_root = False
-                if len(parameters) == 3 and parameters[0] == '--su':
+                if len(parameters) >= 4 and parameters[0] == '--su':
                     base_idx = 1
                     as_root = True
 
